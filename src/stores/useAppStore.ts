@@ -19,6 +19,55 @@ export interface DataSource {
   status: 'connecting' | 'connected' | 'error' | 'disconnected' | 'syncing';
   lastSync?: string;
   fileCount?: number;
+  chunks?: DocumentChunk[];
+  embeddings?: DocumentEmbedding[];
+  processingStatus?: ProcessingPipelineStatus;
+}
+
+export interface DocumentChunk {
+  id: string;
+  sourceId: string;
+  content: string;
+  startIndex: number;
+  endIndex: number;
+  embedding?: number[];
+  score?: number;
+}
+
+export interface DocumentEmbedding {
+  id: string;
+  sourceId: string;
+  vector: number[];
+  metadata: {
+    chunkId: string;
+    content: string;
+    position: { x: number; y: number };
+  };
+}
+
+export interface ProcessingPipelineStatus {
+  id: string;
+  sourceId: string;
+  stage: 'uploading' | 'chunking' | 'embedding' | 'indexing' | 'completed' | 'error';
+  progress: number;
+  message: string;
+  timestamp: string;
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  type: 'document' | 'concept' | 'entity';
+  size: number;
+  color: string;
+  metadata?: any;
+}
+
+export interface KnowledgeGraphLink {
+  source: string;
+  target: string;
+  strength: number;
+  type: 'reference' | 'similarity' | 'concept';
 }
 
 export interface ChatMessage {
@@ -27,6 +76,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: string;
   sources?: string[];
+  citations?: Array<{
+    id: string;
+    text: string;
+    sourceId: string;
+    chunkId: string;
+    score: number;
+  }>;
+  highlightedContent?: string;
 }
 
 export interface UploadedFile {
@@ -74,6 +131,7 @@ interface AppStore {
   updateDataSource: (id: string, updates: Partial<DataSource>) => void;
   deleteDataSource: (id: string) => void;
   removeDataSource: (id: string) => void;
+  processDocument: (sourceId: string) => Promise<void>;
   
   uploadedFiles: UploadedFile[];
   addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
@@ -81,6 +139,18 @@ interface AppStore {
   
   chatMessages: ChatMessage[];
   addChatMessage: (message: Omit<ChatMessage, 'id'>) => void;
+  exportChatAsMarkdown: () => string;
+  exportChatAsPDF: () => void;
+  
+  // RAG functionality
+  documentEmbeddings: DocumentEmbedding[];
+  knowledgeGraph: {
+    nodes: KnowledgeGraphNode[];
+    links: KnowledgeGraphLink[];
+  };
+  semanticSearch: (query: string) => Promise<DocumentChunk[]>;
+  updateEmbeddings: (sourceId: string, embeddings: DocumentEmbedding[]) => void;
+  updateKnowledgeGraph: (nodes: KnowledgeGraphNode[], links: KnowledgeGraphLink[]) => void;
   
   settings: Settings;
   updateSettings: (updates: Partial<Settings>) => void;
@@ -253,6 +323,114 @@ export const useAppStore = create<AppStore>((set, get) => {
       set(state => ({
         chatMessages: [...state.chatMessages, message]
       }));
+    },
+
+    exportChatAsMarkdown: () => {
+      const { chatMessages } = get();
+      let markdown = '# Chat Export\n\n';
+      
+      chatMessages.forEach(msg => {
+        const timestamp = new Date(msg.timestamp).toLocaleString();
+        markdown += `## ${msg.role === 'user' ? 'User' : 'Assistant'} - ${timestamp}\n\n`;
+        markdown += `${msg.content}\n\n`;
+        
+        if (msg.citations && msg.citations.length > 0) {
+          markdown += '### Citations\n\n';
+          msg.citations.forEach((citation, index) => {
+            markdown += `${index + 1}. ${citation.text} (Score: ${citation.score.toFixed(2)})\n`;
+          });
+          markdown += '\n';
+        }
+        
+        markdown += '---\n\n';
+      });
+      
+      return markdown;
+    },
+
+    exportChatAsPDF: () => {
+      const markdown = get().exportChatAsMarkdown();
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-export-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+    // RAG functionality
+    documentEmbeddings: [],
+    knowledgeGraph: {
+      nodes: [],
+      links: []
+    },
+
+    processDocument: async (sourceId: string) => {
+      // Simulate document processing pipeline
+      const source = get().dataSources.find(s => s.id === sourceId);
+      if (!source) return;
+
+      // Update processing status
+      get().updateDataSource(sourceId, {
+        processingStatus: {
+          id: `proc-${Date.now()}`,
+          sourceId,
+          stage: 'chunking',
+          progress: 0,
+          message: 'Starting document processing...',
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      // Simulate processing stages
+      const stages = ['chunking', 'embedding', 'indexing', 'completed'] as const;
+      
+      for (let i = 0; i < stages.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        get().updateDataSource(sourceId, {
+          processingStatus: {
+            id: `proc-${Date.now()}`,
+            sourceId,
+            stage: stages[i],
+            progress: ((i + 1) / stages.length) * 100,
+            message: `Processing: ${stages[i]}...`,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    },
+
+    semanticSearch: async (query: string) => {
+      // Simulate semantic search
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Return mock results
+      return [
+        {
+          id: 'chunk1',
+          sourceId: 'source1',
+          content: 'Sample content that matches the query...',
+          startIndex: 0,
+          endIndex: 100,
+          embedding: [],
+          score: 0.85
+        }
+      ];
+    },
+
+    updateEmbeddings: (sourceId: string, embeddings: DocumentEmbedding[]) => {
+      set(state => ({
+        documentEmbeddings: [
+          ...state.documentEmbeddings.filter(e => e.sourceId !== sourceId),
+          ...embeddings
+        ]
+      }));
+    },
+
+    updateKnowledgeGraph: (nodes: KnowledgeGraphNode[], links: KnowledgeGraphLink[]) => {
+      set({ knowledgeGraph: { nodes, links } });
     },
     
     settings: {

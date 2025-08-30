@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Server,
   Database,
+  Brain,
   Settings,
   Circle,
   CheckCircle,
@@ -28,6 +29,7 @@ const navigationItems = [
   { title: 'Chat', url: '/', icon: MessageSquare },
   { title: 'MCP Servers', url: '/mcp-setup', icon: Server },
   { title: 'Data Sources', url: '/data-sources', icon: Database },
+  { title: 'RAG Dashboard', url: '/rag-dashboard', icon: Brain },
   { title: 'Settings', url: '/settings', icon: Settings }
 ];
 
