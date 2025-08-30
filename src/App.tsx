@@ -33,6 +33,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Index />} />
               <Route path="chat-history" element={<ChatHistory />} />
+              <Route path="rag-dashboard" element={<RAGDashboard />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="mcp-setup" element={<MCPSetup />} />
               <Route path="data-sources" element={<DataSources />} />
