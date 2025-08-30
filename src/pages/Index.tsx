@@ -28,10 +28,11 @@ const Index = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { chatMessages, addChatMessage, dataSources, mcpServers, addDataSource, clearChatHistory } = useAppStore();
+  const { chatMessages, addChatMessage, dataSources, mcpServers, addDataSource, getCurrentThreadMessages, createNewThread } = useAppStore();
 
   const connectedSources = dataSources.filter(s => s.status === 'connected');
   const connectedServers = mcpServers.filter(s => s.status === 'connected');
+  const currentThreadMessages = getCurrentThreadMessages();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,7 +40,7 @@ const Index = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chatMessages]);
+  }, [currentThreadMessages]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return;
@@ -167,11 +168,11 @@ const Index = () => {
   };
 
   const handleStartNewChat = () => {
-    clearChatHistory();
+    createNewThread();
     setMessage('');
     toast({
-      title: "New chat started",
-      description: "Previous conversation cleared. Ready for a fresh start!"
+      title: "New thread started",
+      description: "Ready for a fresh conversation!"
     });
   };
 
@@ -224,7 +225,7 @@ const Index = () => {
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4 max-w-4xl mx-auto">
-          {chatMessages.length === 0 ? (
+          {currentThreadMessages.length === 0 ? (
             <div className="text-center py-12">
               <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Welcome to RagForge AI</h3>
@@ -249,7 +250,7 @@ const Index = () => {
               </div>
             </div>
           ) : (
-            chatMessages.map((msg) => (
+            currentThreadMessages.map((msg) => (
               <div
                 key={msg.id}
                 className={cn(

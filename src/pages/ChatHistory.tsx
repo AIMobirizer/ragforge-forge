@@ -18,34 +18,44 @@ import {
   Plus,
   Calendar,
   FileText,
-  Clock
+  Clock,
+  Edit3,
+  MoreVertical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function ChatHistory() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { chatMessages, clearChatHistory } = useAppStore();
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  
+  const { 
+    chatThreads, 
+    chatMessages, 
+    deleteThread, 
+    updateThreadTitle,
+    switchToThread, 
+    createNewThread,
+    clearChatHistory 
+  } = useAppStore();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Group messages by conversation (simplified - group by date for now)
-  const groupedChats = chatMessages.reduce((acc, message) => {
-    const date = new Date(message.timestamp).toDateString();
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(message);
-    return acc;
-  }, {} as Record<string, typeof chatMessages>);
-
-  const filteredChats = Object.entries(groupedChats).filter(([date, messages]) => {
+  const filteredThreads = chatThreads.filter(thread => {
     if (!searchQuery) return true;
-    return messages.some(msg => 
-      msg.content.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const threadMessages = chatMessages.filter(m => m.threadId === thread.id);
+    return thread.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           threadMessages.some(msg => msg.content.toLowerCase().includes(searchQuery.toLowerCase()));
   });
 
   const handleStartNewChat = () => {
+    const threadId = createNewThread();
     navigate('/');
     toast({
       title: "New chat started",
@@ -53,8 +63,18 @@ export default function ChatHistory() {
     });
   };
 
-  const handleExportChat = (date: string, messages: typeof chatMessages) => {
-    const chatContent = messages.map(msg => 
+  const handleContinueThread = (threadId: string) => {
+    switchToThread(threadId);
+    navigate('/');
+    toast({
+      title: "Thread resumed",
+      description: "Continuing previous conversation"
+    });
+  };
+
+  const handleExportThread = (thread: any) => {
+    const threadMessages = chatMessages.filter(m => m.threadId === thread.id);
+    const chatContent = threadMessages.map(msg => 
       `${msg.role === 'user' ? 'You' : 'AI'}: ${msg.content}`
     ).join('\n\n');
     
@@ -62,34 +82,66 @@ export default function ChatHistory() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `chat-${date.replace(/\s+/g, '-')}.txt`;
+    a.download = `${thread.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     toast({
-      title: "Chat exported",
-      description: `Chat from ${date} has been saved`
+      title: "Thread exported",
+      description: `"${thread.title}" has been saved`
     });
+  };
+
+  const handleDeleteThread = (threadId: string) => {
+    deleteThread(threadId);
+    toast({
+      title: "Thread deleted",
+      description: "Conversation has been removed",
+      variant: "destructive"
+    });
+  };
+
+  const handleStartEdit = (thread: any) => {
+    setEditingThreadId(thread.id);
+    setEditTitle(thread.title);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingThreadId && editTitle.trim()) {
+      updateThreadTitle(editingThreadId, editTitle.trim());
+      setEditingThreadId(null);
+      setEditTitle('');
+      toast({
+        title: "Thread renamed",
+        description: "Thread title has been updated"
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingThreadId(null);
+    setEditTitle('');
   };
 
   const handleClearAllHistory = () => {
     clearChatHistory();
     toast({
-      title: "Chat history cleared",
-      description: "All conversations have been deleted",
+      title: "All threads deleted",
+      description: "All conversations have been cleared",
       variant: "destructive"
     });
   };
 
-  const getMessagePreview = (messages: typeof chatMessages) => {
-    const firstUserMessage = messages.find(m => m.role === 'user');
-    return firstUserMessage?.content.slice(0, 100) + '...' || 'No messages';
+  const getThreadMessageCount = (threadId: string) => {
+    return chatMessages.filter(m => m.threadId === threadId).length;
   };
 
-  const getTotalMessages = (messages: typeof chatMessages) => {
-    return messages.length;
+  const getThreadPreview = (threadId: string) => {
+    const threadMessages = chatMessages.filter(m => m.threadId === threadId);
+    const lastMessage = threadMessages[threadMessages.length - 1];
+    return lastMessage?.content.slice(0, 100) + '...' || 'No messages';
   };
 
   return (
@@ -134,8 +186,8 @@ export default function ChatHistory() {
             <div className="flex items-center gap-4">
               <MessageSquare className="h-8 w-8 text-primary" />
               <div>
-                <p className="text-2xl font-bold">{Object.keys(groupedChats).length}</p>
-                <p className="text-sm text-muted-foreground">Conversations</p>
+                <p className="text-2xl font-bold">{chatThreads.length}</p>
+                <p className="text-sm text-muted-foreground">Chat Threads</p>
               </div>
             </div>
           </CardContent>
@@ -159,7 +211,9 @@ export default function ChatHistory() {
               <Calendar className="h-8 w-8 text-primary" />
               <div>
                 <p className="text-2xl font-bold">
-                  {chatMessages.length > 0 ? Object.keys(groupedChats).length : 0}
+                  {chatThreads.length > 0 
+                    ? new Set(chatThreads.map(t => new Date(t.createdAt).toDateString())).size 
+                    : 0}
                 </p>
                 <p className="text-sm text-muted-foreground">Active Days</p>
               </div>
@@ -168,14 +222,14 @@ export default function ChatHistory() {
         </Card>
       </div>
 
-      {/* Chat History List */}
+      {/* Thread List */}
       <div className="space-y-4">
-        {filteredChats.length === 0 ? (
+        {filteredThreads.length === 0 ? (
           <Card className="p-12 text-center">
-            {chatMessages.length === 0 ? (
+            {chatThreads.length === 0 ? (
               <>
                 <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Chat History</h3>
+                <h3 className="text-lg font-semibold mb-2">No Chat Threads</h3>
                 <p className="text-muted-foreground mb-4">
                   Start your first conversation to see it appear here
                 </p>
@@ -189,85 +243,120 @@ export default function ChatHistory() {
                 <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No Results Found</h3>
                 <p className="text-muted-foreground">
-                  No conversations match your search query
+                  No threads match your search query
                 </p>
               </>
             )}
           </Card>
         ) : (
-          filteredChats.map(([date, messages]) => (
-            <Card key={date} className="hover:shadow-lg transition-shadow">
+          filteredThreads.map((thread) => (
+            <Card key={thread.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <div>
-                      <CardTitle className="text-lg">{date}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {getTotalMessages(messages)} messages
-                      </p>
-                    </div>
+                  <div className="flex-1">
+                    {editingThreadId === thread.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="text-lg font-semibold"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveEdit();
+                            if (e.key === 'Escape') handleCancelEdit();
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={handleSaveEdit}>Save</Button>
+                        <Button size="sm" variant="ghost" onClick={handleCancelEdit}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <MessageSquare className="h-5 w-5 text-primary" />
+                        <div>
+                          <CardTitle className="text-lg">{thread.title}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {getThreadMessageCount(thread.id)} messages • {new Date(thread.updatedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleExportChat(date, messages)}
-                      className="gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Export
-                    </Button>
-                  </div>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleContinueThread(thread.id)}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Continue Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStartEdit(thread)}>
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportThread(thread)}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteThread(thread.id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               
               <CardContent>
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    {getMessagePreview(messages)}
+                    {getThreadPreview(thread.id)}
                   </p>
                   
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
                       <User className="h-3 w-3" />
-                      <span>{messages.filter(m => m.role === 'user').length} questions</span>
+                      <span>{chatMessages.filter(m => m.threadId === thread.id && m.role === 'user').length} questions</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Bot className="h-3 w-3" />
-                      <span>{messages.filter(m => m.role === 'assistant').length} responses</span>
+                      <span>{chatMessages.filter(m => m.threadId === thread.id && m.role === 'assistant').length} responses</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      <span>{new Date(messages[messages.length - 1]?.timestamp).toLocaleTimeString()}</span>
+                      <span>{new Date(thread.updatedAt).toLocaleTimeString()}</span>
                     </div>
                   </div>
 
                   {/* Message Preview */}
-                  <ScrollArea className="h-32 w-full rounded border p-3 bg-muted/20">
+                  <ScrollArea className="h-24 w-full rounded border p-3 bg-muted/20">
                     <div className="space-y-2">
-                      {messages.slice(0, 3).map((message) => (
-                        <div key={message.id} className="flex gap-2 text-sm">
-                          <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                            message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
-                          )}>
-                            {message.role === 'user' ? (
-                              <User className="h-3 w-3" />
-                            ) : (
-                              <Bot className="h-3 w-3" />
-                            )}
+                      {chatMessages
+                        .filter(m => m.threadId === thread.id)
+                        .slice(-2)
+                        .map((message) => (
+                          <div key={message.id} className="flex gap-2 text-xs">
+                            <div className={cn(
+                              "w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0",
+                              message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
+                            )}>
+                              {message.role === 'user' ? (
+                                <User className="h-2 w-2" />
+                              ) : (
+                                <Bot className="h-2 w-2" />
+                              )}
+                            </div>
+                            <p className="text-xs line-clamp-2 leading-relaxed">
+                              {message.content.slice(0, 120)}...
+                            </p>
                           </div>
-                          <p className="text-xs line-clamp-2">
-                            {message.content.slice(0, 150)}...
-                          </p>
-                        </div>
-                      ))}
-                      {messages.length > 3 && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          +{messages.length - 3} more messages
-                        </p>
-                      )}
+                        ))}
                     </div>
                   </ScrollArea>
                 </div>

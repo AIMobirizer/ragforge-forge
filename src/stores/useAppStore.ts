@@ -70,8 +70,18 @@ export interface KnowledgeGraphLink {
   type: 'reference' | 'similarity' | 'concept';
 }
 
+export interface ChatThread {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage?: string;
+}
+
 export interface ChatMessage {
   id: string;
+  threadId: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: string;
@@ -137,9 +147,16 @@ interface AppStore {
   addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
   deleteUploadedFile: (id: string) => void;
   
+  chatThreads: ChatThread[];
+  currentThreadId: string | null;
   chatMessages: ChatMessage[];
-  addChatMessage: (message: Omit<ChatMessage, 'id'>) => void;
+  createNewThread: () => string;
+  switchToThread: (threadId: string) => void;
+  addChatMessage: (message: Omit<ChatMessage, 'id' | 'threadId'>) => void;
+  updateThreadTitle: (threadId: string, title: string) => void;
+  deleteThread: (threadId: string) => void;
   clearChatHistory: () => void;
+  getCurrentThreadMessages: () => ChatMessage[];
   exportChatAsMarkdown: () => string;
   exportChatAsPDF: () => void;
   
@@ -315,19 +332,100 @@ export const useAppStore = create<AppStore>((set, get) => {
       }));
     },
     
+    chatThreads: [],
+    currentThreadId: null,
     chatMessages: [],
+    
+    createNewThread: () => {
+      const newThread: ChatThread = {
+        id: `thread-${Date.now()}`,
+        title: 'New Conversation',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messageCount: 0,
+      };
+      
+      set(state => ({
+        chatThreads: [...state.chatThreads, newThread],
+        currentThreadId: newThread.id
+      }));
+      
+      return newThread.id;
+    },
+    
+    switchToThread: (threadId) => {
+      set({ currentThreadId: threadId });
+    },
+    
     addChatMessage: (messageData) => {
+      const state = get();
+      let threadId = state.currentThreadId;
+      
+      // Create new thread if none exists
+      if (!threadId) {
+        threadId = state.createNewThread();
+      }
+      
       const message: ChatMessage = {
         ...messageData,
         id: `msg-${Date.now()}`,
+        threadId,
       };
+      
+      // Generate thread title from first user message
+      const threadMessages = state.chatMessages.filter(m => m.threadId === threadId);
+      const isFirstMessage = threadMessages.length === 0 && messageData.role === 'user';
+      
+      set(state => {
+        const updatedMessages = [...state.chatMessages, message];
+        const updatedThreads = state.chatThreads.map(thread => {
+          if (thread.id === threadId) {
+            return {
+              ...thread,
+              title: isFirstMessage ? messageData.content.slice(0, 50) + '...' : thread.title,
+              updatedAt: new Date().toISOString(),
+              messageCount: updatedMessages.filter(m => m.threadId === threadId).length,
+              lastMessage: messageData.content.slice(0, 100)
+            };
+          }
+          return thread;
+        });
+        
+        return {
+          chatMessages: updatedMessages,
+          chatThreads: updatedThreads
+        };
+      });
+    },
+    
+    updateThreadTitle: (threadId, title) => {
       set(state => ({
-        chatMessages: [...state.chatMessages, message]
+        chatThreads: state.chatThreads.map(thread =>
+          thread.id === threadId ? { ...thread, title } : thread
+        )
       }));
     },
     
+    deleteThread: (threadId) => {
+      set(state => ({
+        chatThreads: state.chatThreads.filter(thread => thread.id !== threadId),
+        chatMessages: state.chatMessages.filter(message => message.threadId !== threadId),
+        currentThreadId: state.currentThreadId === threadId ? null : state.currentThreadId
+      }));
+    },
+    
+    getCurrentThreadMessages: () => {
+      const state = get();
+      if (!state.currentThreadId) return [];
+      return state.chatMessages.filter(message => message.threadId === state.currentThreadId);
+    },
+    
     clearChatHistory: () => {
-      set({ chatMessages: [] });
+      set({ 
+        chatMessages: [], 
+        chatThreads: [], 
+        currentThreadId: null 
+      });
     },
 
     exportChatAsMarkdown: () => {
