@@ -20,6 +20,9 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "next-themes";
 
+// Force cache clear 
+console.log("App loaded:", new Date().toISOString());
+
 const App = () => (
   <Provider store={store}>
     <ThemeProvider 
