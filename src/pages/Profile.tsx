@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Upload, User } from 'lucide-react';
 
@@ -31,19 +30,10 @@ export default function Profile() {
     try {
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('display_name, avatar_url')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
+      // Mock profile data from user
       setProfile({
-        display_name: data?.display_name || '',
-        avatar_url: data?.avatar_url || null
+        display_name: user.display_name || '',
+        avatar_url: user.avatar_url || null
       });
     } catch (error: any) {
       toast.error('Error loading profile: ' + error.message);

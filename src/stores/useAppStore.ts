@@ -1,435 +1,233 @@
-import { create } from 'zustand';
-import { MCPConnectionPoolManager, MCPServerStatus } from '@/utils/mcpSimulation';
+// Legacy compatibility layer for Redux migration
+import { useAppSelector, useAppDispatch } from '@/store';
+import { 
+  addMCPServer,
+  updateMCPServer, 
+  deleteMCPServer,
+  addDataSource,
+  updateDataSource,
+  deleteDataSource,
+  addUploadedFile,
+  deleteUploadedFile,
+  createNewThread,
+  switchToThread,
+  addChatMessage,
+  updateThreadTitle,
+  deleteThread,
+  clearChatHistory,
+  updateEmbeddings,
+  updateKnowledgeGraph,
+  updateSettings,
+  toggleRightPanel,
+  processDocument,
+  semanticSearch,
+  setConnectionManager,
+  type MCPServer,
+  type DataSource,
+  type DocumentChunk,
+  type DocumentEmbedding,
+  type ProcessingPipelineStatus,
+  type KnowledgeGraphNode,
+  type KnowledgeGraphLink,
+  type ChatThread,
+  type ChatMessage,
+  type UploadedFile,
+  type Settings,
+} from '@/store/slices/appSlice';
+import { MCPConnectionPoolManager } from '@/utils/mcpSimulation';
 
-export interface MCPServer {
-  id: string;
-  name: string;
-  endpoint: string;
-  authMethod: 'none' | 'apikey' | 'oauth' | 'bearer';
-  authValue?: string;
-  description?: string;
-  status: 'connecting' | 'connected' | 'error' | 'disconnected';
-  lastConnected?: string;
-}
+// Re-export types from the slice
+export type {
+  MCPServer,
+  DataSource,
+  DocumentChunk,
+  DocumentEmbedding,
+  ProcessingPipelineStatus,
+  KnowledgeGraphNode,
+  KnowledgeGraphLink,
+  ChatThread,
+  ChatMessage,
+  UploadedFile,
+  Settings,
+};
 
-export interface DataSource {
-  id: string;
-  name: string;
-  type: 'google-drive' | 'dropbox' | 'github' | 'slack' | 'postgresql' | 'file';
-  status: 'connecting' | 'connected' | 'error' | 'disconnected' | 'syncing';
-  lastSync?: string;
-  fileCount?: number;
-  chunks?: DocumentChunk[];
-  embeddings?: DocumentEmbedding[];
-  processingStatus?: ProcessingPipelineStatus;
-}
+// Custom hook that provides the same API as the old Zustand store
+export const useAppStore = () => {
+  const dispatch = useAppDispatch();
+  const {
+    mcpServers,
+    mcpStatuses,
+    connectionManager,
+    dataSources,
+    uploadedFiles,
+    chatThreads,
+    currentThreadId,
+    chatMessages,
+    documentEmbeddings,
+    knowledgeGraph,
+    settings,
+    isRightPanelOpen,
+  } = useAppSelector(state => state.app);
 
-export interface DocumentChunk {
-  id: string;
-  sourceId: string;
-  content: string;
-  startIndex: number;
-  endIndex: number;
-  embedding?: number[];
-  score?: number;
-}
-
-export interface DocumentEmbedding {
-  id: string;
-  sourceId: string;
-  vector: number[];
-  metadata: {
-    chunkId: string;
-    content: string;
-    position: { x: number; y: number };
-  };
-}
-
-export interface ProcessingPipelineStatus {
-  id: string;
-  sourceId: string;
-  stage: 'uploading' | 'chunking' | 'embedding' | 'indexing' | 'completed' | 'error';
-  progress: number;
-  message: string;
-  timestamp: string;
-}
-
-export interface KnowledgeGraphNode {
-  id: string;
-  label: string;
-  type: 'document' | 'concept' | 'entity';
-  size: number;
-  color: string;
-  metadata?: any;
-}
-
-export interface KnowledgeGraphLink {
-  source: string;
-  target: string;
-  strength: number;
-  type: 'reference' | 'similarity' | 'concept';
-}
-
-export interface ChatThread {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-  lastMessage?: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  threadId: string;
-  content: string;
-  role: 'user' | 'assistant';
-  timestamp: string;
-  sources?: string[];
-  citations?: Array<{
-    id: string;
-    text: string;
-    sourceId: string;
-    chunkId: string;
-    score: number;
-  }>;
-  highlightedContent?: string;
-}
-
-export interface UploadedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  uploadedAt: string;
-  processed: boolean;
-}
-
-export interface Settings {
-  chunkSize: number;
-  overlap: number;
-  embeddingModel: string;
-  vectorDatabase: string;
-  ollamaModel: string;
-  temperature: number;
-  maxTokens: number;
-  apiEndpoint: string;
-  theme: 'light' | 'dark';
-  fontSize: number;
-  language: string;
-}
-
-interface AppStore {
-  mcpServers: MCPServer[];
-  mcpStatuses: MCPServerStatus[];
-  connectionManager: MCPConnectionPoolManager;
-  addMCPServer: (server: Omit<MCPServer, 'id' | 'status'>) => void;
-  updateMCPServer: (id: string, updates: Partial<MCPServer>) => void;
-  deleteMCPServer: (id: string) => void;
-  removeMCPServer: (id: string) => void;
-  testMCPConnection: (id: string) => Promise<boolean>;
-  connectMCPServer: (id: string) => Promise<void>;
-  disconnectMCPServer: (id: string) => void;
-  connectAllMCPServers: () => Promise<void>;
-  disconnectAllMCPServers: () => void;
-  importMCPConfigurations: (jsonData: string) => { success: number; errors: string[] };
-  exportMCPConfigurations: () => string;
-  getMCPServerStatus: (id: string) => MCPServerStatus | undefined;
-  
-  dataSources: DataSource[];
-  addDataSource: (source: Omit<DataSource, 'id'>) => void;
-  updateDataSource: (id: string, updates: Partial<DataSource>) => void;
-  deleteDataSource: (id: string) => void;
-  removeDataSource: (id: string) => void;
-  processDocument: (sourceId: string) => Promise<void>;
-  
-  uploadedFiles: UploadedFile[];
-  addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
-  deleteUploadedFile: (id: string) => void;
-  
-  chatThreads: ChatThread[];
-  currentThreadId: string | null;
-  chatMessages: ChatMessage[];
-  createNewThread: () => string;
-  switchToThread: (threadId: string) => void;
-  addChatMessage: (message: Omit<ChatMessage, 'id' | 'threadId'>) => void;
-  updateThreadTitle: (threadId: string, title: string) => void;
-  deleteThread: (threadId: string) => void;
-  clearChatHistory: () => void;
-  getCurrentThreadMessages: () => ChatMessage[];
-  exportChatAsMarkdown: () => string;
-  exportChatAsPDF: () => void;
-  
-  // RAG functionality
-  documentEmbeddings: DocumentEmbedding[];
-  knowledgeGraph: {
-    nodes: KnowledgeGraphNode[];
-    links: KnowledgeGraphLink[];
-  };
-  semanticSearch: (query: string) => Promise<DocumentChunk[]>;
-  updateEmbeddings: (sourceId: string, embeddings: DocumentEmbedding[]) => void;
-  updateKnowledgeGraph: (nodes: KnowledgeGraphNode[], links: KnowledgeGraphLink[]) => void;
-  
-  settings: Settings;
-  updateSettings: (updates: Partial<Settings>) => void;
-  
-  isRightPanelOpen: boolean;
-  toggleRightPanel: () => void;
-}
-
-const sampleMCPServers: MCPServer[] = [
-  {
-    id: 'mcp-1',
-    name: 'Local RAG Server',
-    endpoint: 'ws://localhost:8001/mcp',
-    authMethod: 'none',
-    description: 'Local development MCP server',
-    status: 'disconnected',
-  },
-];
-
-export const useAppStore = create<AppStore>((set, get) => {
-  const connectionManager = new MCPConnectionPoolManager((statuses) => {
-    set({ mcpStatuses: statuses });
-  });
-
-  sampleMCPServers.forEach(server => {
-    connectionManager.addServer(server.id, server);
-  });
+  // Initialize connection manager if needed
+  if (!connectionManager) {
+    const manager = new MCPConnectionPoolManager((statuses) => {
+      // Update statuses through Redux
+    });
+    dispatch(setConnectionManager(manager));
+  }
 
   return {
-    mcpServers: sampleMCPServers,
-    mcpStatuses: [],
+    // State
+    mcpServers,
+    mcpStatuses,
     connectionManager,
-    
-    addMCPServer: (serverData) => {
-      const server: MCPServer = {
-        ...serverData,
-        id: `mcp-${Date.now()}`,
-        status: 'disconnected',
-      };
-      
-      get().connectionManager.addServer(server.id, server);
-      set(state => ({
-        mcpServers: [...state.mcpServers, server]
-      }));
+    dataSources,
+    uploadedFiles,
+    chatThreads,
+    currentThreadId,
+    chatMessages,
+    documentEmbeddings,
+    knowledgeGraph,
+    settings,
+    isRightPanelOpen,
+
+    // MCP Server actions
+    addMCPServer: (server: Omit<MCPServer, 'id' | 'status'>) => {
+      dispatch(addMCPServer(server));
+      if (connectionManager) {
+        const newServer = {
+          ...server,
+          id: `mcp-${Date.now()}`,
+          status: 'disconnected' as const,
+        };
+        connectionManager.addServer(newServer.id, newServer);
+      }
     },
-    
-    updateMCPServer: (id, updates) => {
-      set(state => ({
-        mcpServers: state.mcpServers.map(server =>
-          server.id === id ? { ...server, ...updates } : server
-        )
-      }));
+    updateMCPServer: (id: string, updates: Partial<MCPServer>) => {
+      dispatch(updateMCPServer({ id, updates }));
     },
-    
-    deleteMCPServer: (id) => {
-      get().connectionManager.removeServer(id);
-      set(state => ({
-        mcpServers: state.mcpServers.filter(server => server.id !== id)
-      }));
+    deleteMCPServer: (id: string) => {
+      dispatch(deleteMCPServer(id));
+      if (connectionManager) {
+        connectionManager.removeServer(id);
+      }
     },
-    
-    removeMCPServer: (id) => {
-      get().deleteMCPServer(id);
+    removeMCPServer: (id: string) => {
+      dispatch(deleteMCPServer(id));
+      if (connectionManager) {
+        connectionManager.removeServer(id);
+      }
     },
-    
-    testMCPConnection: async (id) => {
-      const simulator = get().connectionManager.getServer(id);
-      if (simulator) {
-        return await simulator.testConnection();
+    testMCPConnection: async (id: string): Promise<boolean> => {
+      if (connectionManager) {
+        const simulator = connectionManager.getServer(id);
+        if (simulator) {
+          return await simulator.testConnection();
+        }
       }
       return false;
     },
-    
-    connectMCPServer: async (id) => {
-      const simulator = get().connectionManager.getServer(id);
-      if (simulator) {
-        await simulator.connect();
-        set(state => ({
-          mcpServers: state.mcpServers.map(server =>
-            server.id === id 
-              ? { ...server, status: 'connected', lastConnected: new Date().toISOString() }
-              : server
-          )
-        }));
+    connectMCPServer: async (id: string) => {
+      if (connectionManager) {
+        const simulator = connectionManager.getServer(id);
+        if (simulator) {
+          await simulator.connect();
+          dispatch(updateMCPServer({ 
+            id, 
+            updates: { 
+              status: 'connected' as const, 
+              lastConnected: new Date().toISOString() 
+            }
+          }));
+        }
       }
     },
-    
-    disconnectMCPServer: (id) => {
-      const simulator = get().connectionManager.getServer(id);
-      if (simulator) {
-        simulator.disconnect();
-        set(state => ({
-          mcpServers: state.mcpServers.map(server =>
-            server.id === id ? { ...server, status: 'disconnected' } : server
-          )
-        }));
+    disconnectMCPServer: (id: string) => {
+      if (connectionManager) {
+        const simulator = connectionManager.getServer(id);
+        if (simulator) {
+          simulator.disconnect();
+          dispatch(updateMCPServer({ id, updates: { status: 'disconnected' as const } }));
+        }
       }
     },
-    
     connectAllMCPServers: async () => {
-      await get().connectionManager.connectAll();
-    },
-    
-    disconnectAllMCPServers: () => {
-      get().connectionManager.disconnectAll();
-    },
-    
-    importMCPConfigurations: (jsonData) => {
-      return get().connectionManager.importConfigurations(jsonData);
-    },
-    
-    exportMCPConfigurations: () => {
-      return get().connectionManager.exportAllConfigurations();
-    },
-    
-    getMCPServerStatus: (id) => {
-      return get().mcpStatuses.find(status => status.id === id);
-    },
-    
-    dataSources: [],
-    addDataSource: (sourceData) => {
-      const source: DataSource = {
-        ...sourceData,
-        id: `ds-${Date.now()}`,
-      };
-      set(state => ({
-        dataSources: [...state.dataSources, source]
-      }));
-    },
-    updateDataSource: (id, updates) => {
-      set(state => ({
-        dataSources: state.dataSources.map(source =>
-          source.id === id ? { ...source, ...updates } : source
-        )
-      }));
-    },
-    deleteDataSource: (id) => {
-      set(state => ({
-        dataSources: state.dataSources.filter(source => source.id !== id)
-      }));
-    },
-    
-    removeDataSource: (id) => {
-      get().deleteDataSource(id);
-    },
-    
-    uploadedFiles: [],
-    addUploadedFile: (fileData) => {
-      const file: UploadedFile = {
-        ...fileData,
-        id: `file-${Date.now()}`,
-        uploadedAt: new Date().toISOString(),
-      };
-      set(state => ({
-        uploadedFiles: [...state.uploadedFiles, file]
-      }));
-    },
-    deleteUploadedFile: (id) => {
-      set(state => ({
-        uploadedFiles: state.uploadedFiles.filter(file => file.id !== id)
-      }));
-    },
-    
-    chatThreads: [],
-    currentThreadId: null,
-    chatMessages: [],
-    
-    createNewThread: () => {
-      const newThread: ChatThread = {
-        id: `thread-${Date.now()}`,
-        title: 'New Conversation',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        messageCount: 0,
-      };
-      
-      set(state => ({
-        chatThreads: [...state.chatThreads, newThread],
-        currentThreadId: newThread.id
-      }));
-      
-      return newThread.id;
-    },
-    
-    switchToThread: (threadId) => {
-      set({ currentThreadId: threadId });
-    },
-    
-    addChatMessage: (messageData) => {
-      const state = get();
-      let threadId = state.currentThreadId;
-      
-      // Create new thread if none exists
-      if (!threadId) {
-        threadId = state.createNewThread();
+      if (connectionManager) {
+        await connectionManager.connectAll();
       }
-      
-      const message: ChatMessage = {
-        ...messageData,
-        id: `msg-${Date.now()}`,
-        threadId,
-      };
-      
-      // Generate thread title from first user message
-      const threadMessages = state.chatMessages.filter(m => m.threadId === threadId);
-      const isFirstMessage = threadMessages.length === 0 && messageData.role === 'user';
-      
-      set(state => {
-        const updatedMessages = [...state.chatMessages, message];
-        const updatedThreads = state.chatThreads.map(thread => {
-          if (thread.id === threadId) {
-            return {
-              ...thread,
-              title: isFirstMessage ? messageData.content.slice(0, 50) + '...' : thread.title,
-              updatedAt: new Date().toISOString(),
-              messageCount: updatedMessages.filter(m => m.threadId === threadId).length,
-              lastMessage: messageData.content.slice(0, 100)
-            };
-          }
-          return thread;
-        });
-        
-        return {
-          chatMessages: updatedMessages,
-          chatThreads: updatedThreads
-        };
-      });
     },
-    
-    updateThreadTitle: (threadId, title) => {
-      set(state => ({
-        chatThreads: state.chatThreads.map(thread =>
-          thread.id === threadId ? { ...thread, title } : thread
-        )
-      }));
+    disconnectAllMCPServers: () => {
+      if (connectionManager) {
+        connectionManager.disconnectAll();
+      }
     },
-    
-    deleteThread: (threadId) => {
-      set(state => ({
-        chatThreads: state.chatThreads.filter(thread => thread.id !== threadId),
-        chatMessages: state.chatMessages.filter(message => message.threadId !== threadId),
-        currentThreadId: state.currentThreadId === threadId ? null : state.currentThreadId
-      }));
+    importMCPConfigurations: (jsonData: string) => {
+      if (connectionManager) {
+        return connectionManager.importConfigurations(jsonData);
+      }
+      return { success: 0, errors: [] };
     },
-    
-    getCurrentThreadMessages: () => {
-      const state = get();
-      if (!state.currentThreadId) return [];
-      return state.chatMessages.filter(message => message.threadId === state.currentThreadId);
+    exportMCPConfigurations: () => {
+      if (connectionManager) {
+        return connectionManager.exportAllConfigurations();
+      }
+      return '{}';
     },
-    
-    clearChatHistory: () => {
-      set({ 
-        chatMessages: [], 
-        chatThreads: [], 
-        currentThreadId: null 
-      });
+    getMCPServerStatus: (id: string) => {
+      return mcpStatuses.find(status => status.id === id);
     },
 
+    // Data source actions  
+    addDataSource: (source: Omit<DataSource, 'id'>) => {
+      dispatch(addDataSource(source));
+    },
+    updateDataSource: (id: string, updates: Partial<DataSource>) => {
+      dispatch(updateDataSource({ id, updates }));
+    },
+    deleteDataSource: (id: string) => {
+      dispatch(deleteDataSource(id));
+    },
+    removeDataSource: (id: string) => {
+      dispatch(deleteDataSource(id));
+    },
+    processDocument: (sourceId: string) => {
+      return dispatch(processDocument(sourceId));
+    },
+
+    // File actions
+    addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => {
+      dispatch(addUploadedFile(file));
+    },
+    deleteUploadedFile: (id: string) => {
+      dispatch(deleteUploadedFile(id));
+    },
+
+    // Chat actions
+    createNewThread: () => {
+      dispatch(createNewThread());
+      return currentThreadId || `thread-${Date.now()}`;
+    },
+    switchToThread: (threadId: string) => {
+      dispatch(switchToThread(threadId));
+    },
+    addChatMessage: (message: Omit<ChatMessage, 'id' | 'threadId'>) => {
+      dispatch(addChatMessage(message));
+    },
+    updateThreadTitle: (threadId: string, title: string) => {
+      dispatch(updateThreadTitle({ threadId, title }));
+    },
+    deleteThread: (threadId: string) => {
+      dispatch(deleteThread(threadId));
+    },
+    clearChatHistory: () => {
+      dispatch(clearChatHistory());
+    },
+    getCurrentThreadMessages: () => {
+      if (!currentThreadId) return [];
+      return chatMessages.filter(message => message.threadId === currentThreadId);
+    },
     exportChatAsMarkdown: () => {
-      const { chatMessages } = get();
       let markdown = '# Chat Export\n\n';
       
       chatMessages.forEach(msg => {
@@ -450,9 +248,8 @@ export const useAppStore = create<AppStore>((set, get) => {
       
       return markdown;
     },
-
     exportChatAsPDF: () => {
-      const markdown = get().exportChatAsMarkdown();
+      const markdown = chatMessages.length > 0 ? 'Export functionality' : 'No chat to export';
       const blob = new Blob([markdown], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -462,102 +259,25 @@ export const useAppStore = create<AppStore>((set, get) => {
       URL.revokeObjectURL(url);
     },
 
-    // RAG functionality
-    documentEmbeddings: [],
-    knowledgeGraph: {
-      nodes: [],
-      links: []
+    // RAG actions
+    semanticSearch: (query: string) => {
+      return dispatch(semanticSearch(query));
     },
-
-    processDocument: async (sourceId: string) => {
-      // Simulate document processing pipeline
-      const source = get().dataSources.find(s => s.id === sourceId);
-      if (!source) return;
-
-      // Update processing status
-      get().updateDataSource(sourceId, {
-        processingStatus: {
-          id: `proc-${Date.now()}`,
-          sourceId,
-          stage: 'chunking',
-          progress: 0,
-          message: 'Starting document processing...',
-          timestamp: new Date().toISOString()
-        }
-      });
-
-      // Simulate processing stages
-      const stages = ['chunking', 'embedding', 'indexing', 'completed'] as const;
-      
-      for (let i = 0; i < stages.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        get().updateDataSource(sourceId, {
-          processingStatus: {
-            id: `proc-${Date.now()}`,
-            sourceId,
-            stage: stages[i],
-            progress: ((i + 1) / stages.length) * 100,
-            message: `Processing: ${stages[i]}...`,
-            timestamp: new Date().toISOString()
-          }
-        });
-      }
-    },
-
-    semanticSearch: async (query: string) => {
-      // Simulate semantic search
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Return mock results
-      return [
-        {
-          id: 'chunk1',
-          sourceId: 'source1',
-          content: 'Sample content that matches the query...',
-          startIndex: 0,
-          endIndex: 100,
-          embedding: [],
-          score: 0.85
-        }
-      ];
-    },
-
     updateEmbeddings: (sourceId: string, embeddings: DocumentEmbedding[]) => {
-      set(state => ({
-        documentEmbeddings: [
-          ...state.documentEmbeddings.filter(e => e.sourceId !== sourceId),
-          ...embeddings
-        ]
-      }));
+      dispatch(updateEmbeddings({ sourceId, embeddings }));
+    },
+    updateKnowledgeGraph: (nodes: KnowledgeGraphNode[], links: KnowledgeGraphLink[]) => {
+      dispatch(updateKnowledgeGraph({ nodes, links }));
     },
 
-    updateKnowledgeGraph: (nodes: KnowledgeGraphNode[], links: KnowledgeGraphLink[]) => {
-      set({ knowledgeGraph: { nodes, links } });
+    // Settings actions
+    updateSettings: (updates: Partial<Settings>) => {
+      dispatch(updateSettings(updates));
     },
-    
-    settings: {
-      chunkSize: 512,
-      overlap: 50,
-      embeddingModel: 'sentence-transformers/all-MiniLM-L6-v2',
-      vectorDatabase: 'chromadb',
-      ollamaModel: 'llama3.2',
-      temperature: 0.7,
-      maxTokens: 2048,
-      apiEndpoint: 'http://localhost:11434',
-      theme: 'dark',
-      fontSize: 14,
-      language: 'en',
-    },
-    updateSettings: (updates) => {
-      set(state => ({
-        settings: { ...state.settings, ...updates }
-      }));
-    },
-    
-    isRightPanelOpen: false,
+
+    // UI actions
     toggleRightPanel: () => {
-      set(state => ({ isRightPanelOpen: !state.isRightPanelOpen }));
+      dispatch(toggleRightPanel());
     },
   };
-});
+};

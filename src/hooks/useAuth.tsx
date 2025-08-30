@@ -1,11 +1,10 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { setUser, setLoading, signOut as signOutAction, updateProfile as updateProfileAction, type User } from '@/store/slices/authSlice';
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
@@ -17,82 +16,122 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Mock user storage key
+const MOCK_USER_KEY = 'ragforge_mock_user';
+const MOCK_USERS_KEY = 'ragforge_mock_users';
+
+// Helper functions for mock user management
+const getMockUsers = (): Record<string, { password: string; user: User }> => {
+  const stored = localStorage.getItem(MOCK_USERS_KEY);
+  return stored ? JSON.parse(stored) : {};
+};
+
+const saveMockUsers = (users: Record<string, { password: string; user: User }>) => {
+  localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(users));
+};
+
+const getCurrentMockUser = (): User | null => {
+  const stored = localStorage.getItem(MOCK_USER_KEY);
+  return stored ? JSON.parse(stored) : null;
+};
+
+const saveCurrentMockUser = (user: User | null) => {
+  if (user) {
+    localStorage.setItem(MOCK_USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(MOCK_USER_KEY);
+  }
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { user, loading } = useAppSelector(state => state.auth);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        if (event === 'SIGNED_IN') {
-          toast.success('Welcome back!');
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    // Check for existing session on mount
+    const mockUser = getCurrentMockUser();
+    if (mockUser) {
+      dispatch(setUser(mockUser));
+      toast.success('Welcome back!');
+    }
+    dispatch(setLoading(false));
+    setInitialized(true);
+  }, [dispatch]);
 
   const signIn = async (email: string, password: string, rememberMe = false) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) throw error;
-
-      // Handle remember me functionality
-      if (!rememberMe) {
-        // Set session to expire when browser closes
-        localStorage.removeItem('supabase.auth.token');
+      dispatch(setLoading(true));
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const mockUsers = getMockUsers();
+      const userRecord = mockUsers[email];
+      
+      if (!userRecord || userRecord.password !== password) {
+        throw new Error('Invalid email or password');
       }
 
+      dispatch(setUser(userRecord.user));
+      
+      if (rememberMe) {
+        saveCurrentMockUser(userRecord.user);
+      }
+
+      toast.success('Successfully signed in!');
       return { error: null };
     } catch (error: any) {
       return { error };
+    } finally {
+      dispatch(setLoading(false));
     }
   };
 
   const signUp = async (email: string, password: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      dispatch(setLoading(true));
       
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl
-        }
-      });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const mockUsers = getMockUsers();
+      
+      if (mockUsers[email]) {
+        throw new Error('User already exists with this email');
+      }
 
-      if (error) throw error;
+      const newUser: User = {
+        id: `user-${Date.now()}`,
+        email,
+        display_name: email.split('@')[0],
+        created_at: new Date().toISOString(),
+        email_confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        user_metadata: {
+          full_name: email.split('@')[0],
+        },
+      };
+
+      mockUsers[email] = { password, user: newUser };
+      saveMockUsers(mockUsers);
+      
+      dispatch(setUser(newUser));
+      saveCurrentMockUser(newUser);
+      
+      toast.success('Account created successfully!');
       return { error: null };
     } catch (error: any) {
       return { error };
+    } finally {
+      dispatch(setLoading(false));
     }
   };
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      setSession(null);
-      setUser(null);
+      dispatch(signOutAction());
+      saveCurrentMockUser(null);
       toast.success('Signed out successfully');
     } catch (error: any) {
       toast.error('Error signing out');
@@ -101,11 +140,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (error) throw error;
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const mockUsers = getMockUsers();
+      if (!mockUsers[email]) {
+        throw new Error('No account found with this email');
+      }
+      
+      toast.success('Password reset instructions sent to your email');
       return { error: null };
     } catch (error: any) {
       return { error };
@@ -116,15 +159,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (!user) throw new Error('No user logged in');
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          ...data,
-          updated_at: new Date().toISOString()
-        });
+      const updatedUser = { ...user, ...data };
+      dispatch(updateProfileAction(data));
+      
+      // Update in mock storage
+      const mockUsers = getMockUsers();
+      if (mockUsers[user.email]) {
+        mockUsers[user.email].user = updatedUser;
+        saveMockUsers(mockUsers);
+      }
+      saveCurrentMockUser(updatedUser);
 
-      if (error) throw error;
+      toast.success('Profile updated successfully');
       return { error: null };
     } catch (error: any) {
       return { error };
@@ -135,20 +181,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (!user) throw new Error('No user logged in');
 
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      return { error: null, url: data.publicUrl };
+      // Simulate file upload
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Create mock URL for the avatar
+      const mockUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.display_name || user.email)}`;
+      
+      await updateProfile({ avatar_url: mockUrl });
+      
+      return { error: null, url: mockUrl };
     } catch (error: any) {
       return { error, url: undefined };
     }
@@ -156,7 +197,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = {
     user,
-    session,
     loading,
     signIn,
     signUp,
@@ -165,6 +205,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     updateProfile,
     uploadAvatar
   };
+
+  if (!initialized) {
+    return null; // or a loading spinner
+  }
 
   return (
     <AuthContext.Provider value={value}>
