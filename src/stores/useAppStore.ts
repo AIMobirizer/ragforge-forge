@@ -139,6 +139,7 @@ interface AppStore {
   
   chatMessages: ChatMessage[];
   addChatMessage: (message: Omit<ChatMessage, 'id'>) => void;
+  clearChatHistory: () => void;
   exportChatAsMarkdown: () => string;
   exportChatAsPDF: () => void;
   
@@ -323,6 +324,10 @@ export const useAppStore = create<AppStore>((set, get) => {
       set(state => ({
         chatMessages: [...state.chatMessages, message]
       }));
+    },
+    
+    clearChatHistory: () => {
+      set({ chatMessages: [] });
     },
 
     exportChatAsMarkdown: () => {

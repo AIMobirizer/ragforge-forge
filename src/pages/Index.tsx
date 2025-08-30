@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/stores/useAppStore';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import {
   Send,
   Paperclip,
@@ -14,7 +15,9 @@ import {
   Bot,
   User,
   FileText,
-  Loader2
+  Loader2,
+  MessageSquare,
+  Plus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,7 +27,8 @@ const Index = () => {
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { chatMessages, addChatMessage, dataSources, mcpServers, addDataSource } = useAppStore();
+  const navigate = useNavigate();
+  const { chatMessages, addChatMessage, dataSources, mcpServers, addDataSource, clearChatHistory } = useAppStore();
 
   const connectedSources = dataSources.filter(s => s.status === 'connected');
   const connectedServers = mcpServers.filter(s => s.status === 'connected');
@@ -162,6 +166,15 @@ const Index = () => {
     recognition.start();
   };
 
+  const handleStartNewChat = () => {
+    clearChatHistory();
+    setMessage('');
+    toast({
+      title: "New chat started",
+      description: "Previous conversation cleared. Ready for a fresh start!"
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Chat Header */}
@@ -174,6 +187,24 @@ const Index = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/chat-history')}
+              className="gap-2"
+            >
+              <MessageSquare className="h-4 w-4" />
+              History
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStartNewChat}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Chat
+            </Button>
             {connectedSources.length > 0 && (
               <Badge variant="default" className="gap-1">
                 <FileText className="h-3 w-3" />

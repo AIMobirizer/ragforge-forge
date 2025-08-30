@@ -1,4 +1,5 @@
 import { RAGDashboard } from "@/components/RAGDashboard";
+import ChatHistory from "@/pages/ChatHistory";
 import Analytics from "@/pages/Analytics";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -31,7 +32,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Index />} />
-              <Route path="rag-dashboard" element={<RAGDashboard />} />
+              <Route path="chat-history" element={<ChatHistory />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="mcp-setup" element={<MCPSetup />} />
               <Route path="data-sources" element={<DataSources />} />

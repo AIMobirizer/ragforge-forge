@@ -22,12 +22,14 @@ import {
   Circle,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigationItems = [
   { title: 'Chat', url: '/', icon: MessageSquare },
+  { title: 'Chat History', url: '/chat-history', icon: History },
   { title: 'MCP Servers', url: '/mcp-setup', icon: Server },
   { title: 'Data Sources', url: '/data-sources', icon: Database },
   { title: 'RAG Dashboard', url: '/rag-dashboard', icon: Brain },
