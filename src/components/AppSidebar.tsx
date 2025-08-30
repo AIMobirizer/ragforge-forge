@@ -17,6 +17,7 @@ import {
   Server,
   Database,
   Brain,
+  BarChart3,
   Settings,
   Circle,
   CheckCircle,
@@ -30,6 +31,7 @@ const navigationItems = [
   { title: 'MCP Servers', url: '/mcp-setup', icon: Server },
   { title: 'Data Sources', url: '/data-sources', icon: Database },
   { title: 'RAG Dashboard', url: '/rag-dashboard', icon: Brain },
+  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/settings', icon: Settings }
 ];
 

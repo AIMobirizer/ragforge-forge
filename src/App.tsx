@@ -1,4 +1,5 @@
 import { RAGDashboard } from "@/components/RAGDashboard";
+import Analytics from "@/pages/Analytics";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Index />} />
               <Route path="rag-dashboard" element={<RAGDashboard />} />
+              <Route path="analytics" element={<Analytics />} />
               <Route path="mcp-setup" element={<MCPSetup />} />
               <Route path="data-sources" element={<DataSources />} />
               <Route path="settings" element={<Settings />} />
