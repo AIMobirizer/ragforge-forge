@@ -30,8 +30,8 @@ import { cn } from '@/lib/utils';
 const navigationItems = [
   { title: 'Chat', url: '/', icon: MessageSquare },
   { title: 'Chat History', url: '/chat-history', icon: History },
-  { title: 'MCP Servers', url: '/mcp-setup', icon: Server },
   { title: 'Data Sources', url: '/data-sources', icon: Database },
+  { title: 'MCP Setup', url: '/mcp-setup', icon: Server },
   { title: 'RAG Dashboard', url: '/rag-dashboard', icon: Brain },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/settings', icon: Settings }
