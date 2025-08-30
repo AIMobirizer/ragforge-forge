@@ -166,6 +166,47 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
+              <Label>Connection Type</Label>
+              <Select
+                value={settings.apiEndpoint === 'http://localhost:11434' ? 'local' : 'remote'}
+                onValueChange={(value) => {
+                  if (value === 'local') {
+                    updateSettings({ apiEndpoint: 'http://localhost:11434' });
+                  } else {
+                    updateSettings({ apiEndpoint: '' });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="local">Local Ollama</SelectItem>
+                  <SelectItem value="remote">Remote Ollama Server</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Connect to local or remote Ollama instance
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>API Endpoint</Label>
+              <Input
+                value={settings.apiEndpoint}
+                onChange={(e) => updateSettings({ apiEndpoint: e.target.value })}
+                placeholder={settings.apiEndpoint === 'http://localhost:11434' ? 'http://localhost:11434' : 'https://your-ollama-server.com:11434'}
+                disabled={settings.apiEndpoint === 'http://localhost:11434'}
+              />
+              <p className="text-sm text-muted-foreground">
+                {settings.apiEndpoint === 'http://localhost:11434' 
+                  ? 'Using local Ollama instance'
+                  : 'Remote Ollama server URL (include protocol and port)'
+                }
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label>Model</Label>
               <Select
                 value={settings.ollamaModel}
@@ -177,9 +218,15 @@ export default function Settings() {
                 <SelectContent>
                   <SelectItem value="llama3.2">Llama 3.2 (7B)</SelectItem>
                   <SelectItem value="llama3.2:13b">Llama 3.2 (13B)</SelectItem>
+                  <SelectItem value="llama3.2:70b">Llama 3.2 (70B)</SelectItem>
                   <SelectItem value="mistral">Mistral 7B</SelectItem>
+                  <SelectItem value="mistral:7b-instruct">Mistral 7B Instruct</SelectItem>
                   <SelectItem value="codellama">Code Llama 7B</SelectItem>
+                  <SelectItem value="codellama:13b">Code Llama 13B</SelectItem>
                   <SelectItem value="phi3">Phi-3 Mini</SelectItem>
+                  <SelectItem value="phi3:medium">Phi-3 Medium</SelectItem>
+                  <SelectItem value="gemma:2b">Gemma 2B</SelectItem>
+                  <SelectItem value="gemma:7b">Gemma 7B</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -214,17 +261,31 @@ export default function Settings() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label>API Endpoint</Label>
-              <Input
-                value={settings.apiEndpoint}
-                onChange={(e) => updateSettings({ apiEndpoint: e.target.value })}
-                placeholder="http://localhost:11434"
-              />
-              <p className="text-sm text-muted-foreground">
-                Ollama server endpoint URL
-              </p>
-            </div>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={async () => {
+                try {
+                  const response = await fetch(`${settings.apiEndpoint}/api/tags`);
+                  if (response.ok) {
+                    toast({
+                      title: "Connection successful",
+                      description: "Successfully connected to Ollama server"
+                    });
+                  } else {
+                    throw new Error('Connection failed');
+                  }
+                } catch (error) {
+                  toast({
+                    title: "Connection failed",
+                    description: "Could not connect to Ollama server. Check your endpoint URL.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              Test Connection
+            </Button>
           </CardContent>
         </Card>
 
