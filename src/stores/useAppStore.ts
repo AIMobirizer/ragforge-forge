@@ -16,9 +16,17 @@ export interface DataSource {
   id: string;
   name: string;
   type: 'google-drive' | 'dropbox' | 'github' | 'slack' | 'postgresql' | 'file';
-  status: 'connecting' | 'connected' | 'error' | 'disconnected';
+  status: 'connecting' | 'connected' | 'error' | 'disconnected' | 'syncing';
   lastSync?: string;
   fileCount?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: string;
+  sources?: string[];
 }
 
 export interface UploadedFile {
@@ -51,6 +59,7 @@ interface AppStore {
   addMCPServer: (server: Omit<MCPServer, 'id' | 'status'>) => void;
   updateMCPServer: (id: string, updates: Partial<MCPServer>) => void;
   deleteMCPServer: (id: string) => void;
+  removeMCPServer: (id: string) => void;
   testMCPConnection: (id: string) => Promise<boolean>;
   connectMCPServer: (id: string) => Promise<void>;
   disconnectMCPServer: (id: string) => void;
@@ -64,10 +73,14 @@ interface AppStore {
   addDataSource: (source: Omit<DataSource, 'id'>) => void;
   updateDataSource: (id: string, updates: Partial<DataSource>) => void;
   deleteDataSource: (id: string) => void;
+  removeDataSource: (id: string) => void;
   
   uploadedFiles: UploadedFile[];
   addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
   deleteUploadedFile: (id: string) => void;
+  
+  chatMessages: ChatMessage[];
+  addChatMessage: (message: Omit<ChatMessage, 'id'>) => void;
   
   settings: Settings;
   updateSettings: (updates: Partial<Settings>) => void;
@@ -127,6 +140,10 @@ export const useAppStore = create<AppStore>((set, get) => {
       set(state => ({
         mcpServers: state.mcpServers.filter(server => server.id !== id)
       }));
+    },
+    
+    removeMCPServer: (id) => {
+      get().deleteMCPServer(id);
     },
     
     testMCPConnection: async (id) => {
@@ -206,6 +223,10 @@ export const useAppStore = create<AppStore>((set, get) => {
       }));
     },
     
+    removeDataSource: (id) => {
+      get().deleteDataSource(id);
+    },
+    
     uploadedFiles: [],
     addUploadedFile: (fileData) => {
       const file: UploadedFile = {
@@ -220,6 +241,17 @@ export const useAppStore = create<AppStore>((set, get) => {
     deleteUploadedFile: (id) => {
       set(state => ({
         uploadedFiles: state.uploadedFiles.filter(file => file.id !== id)
+      }));
+    },
+    
+    chatMessages: [],
+    addChatMessage: (messageData) => {
+      const message: ChatMessage = {
+        ...messageData,
+        id: `msg-${Date.now()}`,
+      };
+      set(state => ({
+        chatMessages: [...state.chatMessages, message]
       }));
     },
     

@@ -101,7 +101,7 @@ export default function DataSources() {
         updateDataSource(latestSource.id, {
           status: 'connected',
           fileCount: Math.floor(Math.random() * 1000) + 50,
-          lastSync: new Date()
+          lastSync: new Date().toISOString()
         });
 
         toast({
@@ -131,7 +131,7 @@ export default function DataSources() {
             type: 'file',
             status: 'connected',
             fileCount: totalFiles,
-            lastSync: new Date()
+            lastSync: new Date().toISOString()
           });
 
           toast({
@@ -165,7 +165,7 @@ export default function DataSources() {
     setTimeout(() => {
       updateDataSource(id, {
         status: 'connected',
-        lastSync: new Date(),
+        lastSync: new Date().toISOString(),
         fileCount: Math.floor(Math.random() * 500) + 100
       });
       
@@ -330,7 +330,7 @@ export default function DataSources() {
                       
                       {source.lastSync && (
                         <span className="text-muted-foreground">
-                          Last sync: {source.lastSync.toLocaleString()}
+                          Last sync: {new Date(source.lastSync).toLocaleString()}
                         </span>
                       )}
                     </div>

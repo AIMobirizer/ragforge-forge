@@ -69,7 +69,7 @@ export default function MCPSetup() {
   const [formData, setFormData] = useState<{
     name: string;
     endpoint: string;
-    authMethod: 'none' | 'api_key' | 'oauth' | 'bearer';
+    authMethod: 'none' | 'apikey' | 'oauth' | 'bearer';
     description: string;
   }>({
     name: '',
@@ -93,18 +93,14 @@ export default function MCPSetup() {
     
     if (editingServer) {
       updateMCPServer(editingServer.id, {
-        ...formData,
-        status: 'disconnected'
+        ...formData
       });
       toast({
         title: "Server updated",
         description: "MCP server configuration has been updated successfully."
       });
     } else {
-      addMCPServer({
-        ...formData,
-        status: 'disconnected'
-      });
+      addMCPServer(formData);
       toast({
         title: "Server added",
         description: "New MCP server has been added successfully."
@@ -141,8 +137,7 @@ export default function MCPSetup() {
     setTimeout(() => {
       const success = Math.random() > 0.3; // 70% success rate
       updateMCPServer(serverId, { 
-        status: success ? 'connected' : 'error',
-        lastSync: success ? new Date() : undefined
+        status: success ? 'connected' : 'error'
       });
       
       toast({
@@ -219,7 +214,7 @@ export default function MCPSetup() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="api_key">API Key</SelectItem>
+                      <SelectItem value="apikey">API Key</SelectItem>
                       <SelectItem value="oauth">OAuth 2.0</SelectItem>
                       <SelectItem value="bearer">Bearer Token</SelectItem>
                     </SelectContent>
@@ -321,14 +316,6 @@ export default function MCPSetup() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Description</p>
                     <p className="text-sm text-card-foreground">{server.description}</p>
-                  </div>
-                )}
-                
-                {server.lastSync && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Last sync: {server.lastSync.toLocaleString()}
-                    </p>
                   </div>
                 )}
                 

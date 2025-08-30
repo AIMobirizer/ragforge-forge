@@ -44,7 +44,7 @@ export default function Settings() {
       temperature: 0.7,
       maxTokens: 2048,
       apiEndpoint: 'http://localhost:11434',
-      darkMode: true,
+      theme: 'dark',
       fontSize: 14,
       language: 'en'
     });
@@ -245,8 +245,8 @@ export default function Settings() {
                 </p>
               </div>
               <Switch
-                checked={settings.darkMode}
-                onCheckedChange={(checked) => updateSettings({ darkMode: checked })}
+                checked={settings.theme === 'dark'}
+                onCheckedChange={(checked) => updateSettings({ theme: checked ? 'dark' : 'light' })}
               />
             </div>
 

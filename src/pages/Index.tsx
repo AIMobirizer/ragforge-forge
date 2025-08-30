@@ -45,7 +45,8 @@ const Index = () => {
     // Add user message
     addChatMessage({
       content: userMessage,
-      role: 'user'
+      role: 'user',
+      timestamp: new Date().toISOString()
     });
 
     setIsLoading(true);
@@ -66,7 +67,8 @@ const Index = () => {
       addChatMessage({
         content: responses[Math.floor(Math.random() * responses.length)],
         role: 'assistant',
-        sources: Math.random() > 0.5 ? sources : undefined
+        sources: Math.random() > 0.5 ? sources : undefined,
+        timestamp: new Date().toISOString()
       });
 
       setIsLoading(false);
@@ -188,7 +190,7 @@ const Index = () => {
                     )}
                     
                     <p className="text-xs text-muted-foreground">
-                      {msg.timestamp.toLocaleTimeString()}
+                      {new Date(msg.timestamp).toLocaleTimeString()}
                     </p>
                   </div>
                 </div>
