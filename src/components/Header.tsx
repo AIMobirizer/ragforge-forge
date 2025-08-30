@@ -16,8 +16,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/stores/useAppStore';
+import { useAuth } from '@/hooks/useAuth';
+import { Link } from 'react-router-dom';
 import {
   Settings,
   User,
@@ -38,6 +40,8 @@ export function Header() {
     isRightPanelOpen, 
     toggleRightPanel 
   } = useAppStore();
+  
+  const { user, signOut } = useAuth();
 
   const connectedServers = mcpServers.filter(s => s.status === 'connected').length;
   const connectedSources = dataSources.filter(s => s.status === 'connected').length;
@@ -103,8 +107,9 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
               <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.user_metadata?.avatar_url} />
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  U
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -112,23 +117,29 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">User</p>
+                <p className="text-sm font-medium leading-none">
+                  {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
+                </p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  user@ragforge.ai
+                  {user?.email}
                 </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2">
-              <User className="h-4 w-4" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link to="/profile" className="gap-2 w-full">
+                <User className="h-4 w-4" />
+                Profile
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
+            <DropdownMenuItem asChild>
+              <Link to="/settings" className="gap-2 w-full">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-destructive">
+            <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive">
               <LogOut className="h-4 w-4" />
               Sign out
             </DropdownMenuItem>
