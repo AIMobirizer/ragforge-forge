@@ -1,33 +1,36 @@
 import { create } from 'zustand';
+import { MCPConnectionPoolManager, MCPServerStatus } from '@/utils/mcpSimulation';
 
 export interface MCPServer {
   id: string;
   name: string;
   endpoint: string;
-  authMethod: 'none' | 'api_key' | 'oauth' | 'bearer';
-  description: string;
-  status: 'connected' | 'disconnected' | 'connecting' | 'error';
-  lastSync?: Date;
+  authMethod: 'none' | 'apikey' | 'oauth' | 'bearer';
+  authValue?: string;
+  description?: string;
+  status: 'connecting' | 'connected' | 'error' | 'disconnected';
+  lastConnected?: string;
 }
 
 export interface DataSource {
   id: string;
   name: string;
-  type: 'google_drive' | 'dropbox' | 'github' | 'slack' | 'postgresql' | 'file';
-  status: 'connected' | 'disconnected' | 'syncing';
+  type: 'google-drive' | 'dropbox' | 'github' | 'slack' | 'postgresql' | 'file';
+  status: 'connecting' | 'connected' | 'error' | 'disconnected';
+  lastSync?: string;
   fileCount?: number;
-  lastSync?: Date;
 }
 
-export interface ChatMessage {
+export interface UploadedFile {
   id: string;
-  content: string;
-  role: 'user' | 'assistant';
-  timestamp: Date;
-  sources?: string[];
+  name: string;
+  size: number;
+  type: string;
+  uploadedAt: string;
+  processed: boolean;
 }
 
-export interface AppSettings {
+export interface Settings {
   chunkSize: number;
   overlap: number;
   embeddingModel: string;
@@ -36,161 +39,212 @@ export interface AppSettings {
   temperature: number;
   maxTokens: number;
   apiEndpoint: string;
-  darkMode: boolean;
+  theme: 'light' | 'dark';
   fontSize: number;
   language: string;
 }
 
-interface AppState {
+interface AppStore {
   mcpServers: MCPServer[];
-  dataSources: DataSource[];
-  chatMessages: ChatMessage[];
-  settings: AppSettings;
-  isRightPanelOpen: boolean;
-  currentPage: string;
-  
-  // Actions
-  addMCPServer: (server: Omit<MCPServer, 'id'>) => void;
+  mcpStatuses: MCPServerStatus[];
+  connectionManager: MCPConnectionPoolManager;
+  addMCPServer: (server: Omit<MCPServer, 'id' | 'status'>) => void;
   updateMCPServer: (id: string, updates: Partial<MCPServer>) => void;
-  removeMCPServer: (id: string) => void;
+  deleteMCPServer: (id: string) => void;
+  testMCPConnection: (id: string) => Promise<boolean>;
+  connectMCPServer: (id: string) => Promise<void>;
+  disconnectMCPServer: (id: string) => void;
+  connectAllMCPServers: () => Promise<void>;
+  disconnectAllMCPServers: () => void;
+  importMCPConfigurations: (jsonData: string) => { success: number; errors: string[] };
+  exportMCPConfigurations: () => string;
+  getMCPServerStatus: (id: string) => MCPServerStatus | undefined;
+  
+  dataSources: DataSource[];
   addDataSource: (source: Omit<DataSource, 'id'>) => void;
   updateDataSource: (id: string, updates: Partial<DataSource>) => void;
-  removeDataSource: (id: string) => void;
-  addChatMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
-  updateSettings: (updates: Partial<AppSettings>) => void;
+  deleteDataSource: (id: string) => void;
+  
+  uploadedFiles: UploadedFile[];
+  addUploadedFile: (file: Omit<UploadedFile, 'id' | 'uploadedAt'>) => void;
+  deleteUploadedFile: (id: string) => void;
+  
+  settings: Settings;
+  updateSettings: (updates: Partial<Settings>) => void;
+  
+  isRightPanelOpen: boolean;
   toggleRightPanel: () => void;
-  setCurrentPage: (page: string) => void;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
-  mcpServers: [
-    {
-      id: '1',
-      name: 'Internal Knowledge Base',
-      endpoint: 'https://api.internal.com/mcp',
-      authMethod: 'api_key',
-      description: 'Company internal documentation and policies',
-      status: 'disconnected'
-    },
-    {
-      id: '2', 
-      name: 'Research Database',
-      endpoint: 'https://research.example.com/mcp',
-      authMethod: 'oauth',
-      description: 'Scientific papers and research articles',
-      status: 'disconnected'
-    },
-    {
-      id: '3',
-      name: 'Customer Support KB',
-      endpoint: 'https://support.company.com/mcp',
-      authMethod: 'bearer',
-      description: 'Customer support documentation and FAQs',
-      status: 'error'
-    }
-  ],
-  
-  dataSources: [
-    {
-      id: '1',
-      name: 'Project Documentation',
-      type: 'file',
-      status: 'connected',
-      fileCount: 25,
-      lastSync: new Date(Date.now() - 1000 * 60 * 30)
-    },
-    {
-      id: '2',
-      name: 'Team Slack',
-      type: 'slack',
-      status: 'syncing',
-      fileCount: 1420,
-      lastSync: new Date(Date.now() - 1000 * 60 * 5)
-    }
-  ],
-  
-  chatMessages: [
-    {
-      id: '1',
-      content: 'Hello! How can I help you with your data analysis today?',
-      role: 'assistant',
-      timestamp: new Date(Date.now() - 1000 * 60 * 10)
-    },
-    {
-      id: '2',
-      content: 'Can you explain the latest quarterly results from our financial documents?',
-      role: 'user',
-      timestamp: new Date(Date.now() - 1000 * 60 * 9)
-    },
-    {
-      id: '3',
-      content: 'Based on the financial documents in your knowledge base, the Q3 results show a 15% increase in revenue compared to Q2, driven primarily by strong performance in the enterprise segment. The key highlights include...',
-      role: 'assistant',
-      timestamp: new Date(Date.now() - 1000 * 60 * 8),
-      sources: ['Q3_Financial_Report.pdf', 'Revenue_Analysis.xlsx']
-    }
-  ],
-  
-  settings: {
-    chunkSize: 512,
-    overlap: 50,
-    embeddingModel: 'nomic-embed-text',
-    vectorDatabase: 'chromadb',
-    ollamaModel: 'llama3.2',
-    temperature: 0.7,
-    maxTokens: 2048,
-    apiEndpoint: 'http://localhost:11434',
-    darkMode: true,
-    fontSize: 14,
-    language: 'en'
+const sampleMCPServers: MCPServer[] = [
+  {
+    id: 'mcp-1',
+    name: 'Local RAG Server',
+    endpoint: 'ws://localhost:8001/mcp',
+    authMethod: 'none',
+    description: 'Local development MCP server',
+    status: 'disconnected',
   },
-  
-  isRightPanelOpen: false,
-  currentPage: '/',
-  
-  addMCPServer: (server) => set((state) => ({
-    mcpServers: [...state.mcpServers, { ...server, id: Date.now().toString() }]
-  })),
-  
-  updateMCPServer: (id, updates) => set((state) => ({
-    mcpServers: state.mcpServers.map(server => 
-      server.id === id ? { ...server, ...updates } : server
-    )
-  })),
-  
-  removeMCPServer: (id) => set((state) => ({
-    mcpServers: state.mcpServers.filter(server => server.id !== id)
-  })),
-  
-  addDataSource: (source) => set((state) => ({
-    dataSources: [...state.dataSources, { ...source, id: Date.now().toString() }]
-  })),
-  
-  updateDataSource: (id, updates) => set((state) => ({
-    dataSources: state.dataSources.map(source =>
-      source.id === id ? { ...source, ...updates } : source
-    )
-  })),
-  
-  removeDataSource: (id) => set((state) => ({
-    dataSources: state.dataSources.filter(source => source.id !== id)
-  })),
-  
-  addChatMessage: (message) => set((state) => ({
-    chatMessages: [...state.chatMessages, {
-      ...message,
-      id: Date.now().toString(),
-      timestamp: new Date()
-    }]
-  })),
-  
-  updateSettings: (updates) => set((state) => ({
-    settings: { ...state.settings, ...updates }
-  })),
-  
-  toggleRightPanel: () => set((state) => ({
-    isRightPanelOpen: !state.isRightPanelOpen
-  })),
-  
-  setCurrentPage: (page) => set({ currentPage: page })
-}));
+];
+
+export const useAppStore = create<AppStore>((set, get) => {
+  const connectionManager = new MCPConnectionPoolManager((statuses) => {
+    set({ mcpStatuses: statuses });
+  });
+
+  sampleMCPServers.forEach(server => {
+    connectionManager.addServer(server.id, server);
+  });
+
+  return {
+    mcpServers: sampleMCPServers,
+    mcpStatuses: [],
+    connectionManager,
+    
+    addMCPServer: (serverData) => {
+      const server: MCPServer = {
+        ...serverData,
+        id: `mcp-${Date.now()}`,
+        status: 'disconnected',
+      };
+      
+      get().connectionManager.addServer(server.id, server);
+      set(state => ({
+        mcpServers: [...state.mcpServers, server]
+      }));
+    },
+    
+    updateMCPServer: (id, updates) => {
+      set(state => ({
+        mcpServers: state.mcpServers.map(server =>
+          server.id === id ? { ...server, ...updates } : server
+        )
+      }));
+    },
+    
+    deleteMCPServer: (id) => {
+      get().connectionManager.removeServer(id);
+      set(state => ({
+        mcpServers: state.mcpServers.filter(server => server.id !== id)
+      }));
+    },
+    
+    testMCPConnection: async (id) => {
+      const simulator = get().connectionManager.getServer(id);
+      if (simulator) {
+        return await simulator.testConnection();
+      }
+      return false;
+    },
+    
+    connectMCPServer: async (id) => {
+      const simulator = get().connectionManager.getServer(id);
+      if (simulator) {
+        await simulator.connect();
+        set(state => ({
+          mcpServers: state.mcpServers.map(server =>
+            server.id === id 
+              ? { ...server, status: 'connected', lastConnected: new Date().toISOString() }
+              : server
+          )
+        }));
+      }
+    },
+    
+    disconnectMCPServer: (id) => {
+      const simulator = get().connectionManager.getServer(id);
+      if (simulator) {
+        simulator.disconnect();
+        set(state => ({
+          mcpServers: state.mcpServers.map(server =>
+            server.id === id ? { ...server, status: 'disconnected' } : server
+          )
+        }));
+      }
+    },
+    
+    connectAllMCPServers: async () => {
+      await get().connectionManager.connectAll();
+    },
+    
+    disconnectAllMCPServers: () => {
+      get().connectionManager.disconnectAll();
+    },
+    
+    importMCPConfigurations: (jsonData) => {
+      return get().connectionManager.importConfigurations(jsonData);
+    },
+    
+    exportMCPConfigurations: () => {
+      return get().connectionManager.exportAllConfigurations();
+    },
+    
+    getMCPServerStatus: (id) => {
+      return get().mcpStatuses.find(status => status.id === id);
+    },
+    
+    dataSources: [],
+    addDataSource: (sourceData) => {
+      const source: DataSource = {
+        ...sourceData,
+        id: `ds-${Date.now()}`,
+      };
+      set(state => ({
+        dataSources: [...state.dataSources, source]
+      }));
+    },
+    updateDataSource: (id, updates) => {
+      set(state => ({
+        dataSources: state.dataSources.map(source =>
+          source.id === id ? { ...source, ...updates } : source
+        )
+      }));
+    },
+    deleteDataSource: (id) => {
+      set(state => ({
+        dataSources: state.dataSources.filter(source => source.id !== id)
+      }));
+    },
+    
+    uploadedFiles: [],
+    addUploadedFile: (fileData) => {
+      const file: UploadedFile = {
+        ...fileData,
+        id: `file-${Date.now()}`,
+        uploadedAt: new Date().toISOString(),
+      };
+      set(state => ({
+        uploadedFiles: [...state.uploadedFiles, file]
+      }));
+    },
+    deleteUploadedFile: (id) => {
+      set(state => ({
+        uploadedFiles: state.uploadedFiles.filter(file => file.id !== id)
+      }));
+    },
+    
+    settings: {
+      chunkSize: 512,
+      overlap: 50,
+      embeddingModel: 'sentence-transformers/all-MiniLM-L6-v2',
+      vectorDatabase: 'chromadb',
+      ollamaModel: 'llama3.2',
+      temperature: 0.7,
+      maxTokens: 2048,
+      apiEndpoint: 'http://localhost:11434',
+      theme: 'dark',
+      fontSize: 14,
+      language: 'en',
+    },
+    updateSettings: (updates) => {
+      set(state => ({
+        settings: { ...state.settings, ...updates }
+      }));
+    },
+    
+    isRightPanelOpen: false,
+    toggleRightPanel: () => {
+      set(state => ({ isRightPanelOpen: !state.isRightPanelOpen }));
+    },
+  };
+});
