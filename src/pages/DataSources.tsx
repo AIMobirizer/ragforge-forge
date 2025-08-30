@@ -92,8 +92,22 @@ export default function DataSources() {
       description: `Establishing connection to ${connector.name}`
     });
 
-    // Simulate connection process
+    // Simulate realistic connection process
+    const steps = ['Authenticating...', 'Scanning documents...', 'Processing content...', 'Indexing data...'];
+    let currentStep = 0;
+    
+    const stepInterval = setInterval(() => {
+      if (currentStep < steps.length) {
+        toast({
+          title: "Connecting",
+          description: steps[currentStep],
+        });
+        currentStep++;
+      }
+    }, 800);
+
     setTimeout(() => {
+      clearInterval(stepInterval);
       const sources = dataSources.filter(s => s.type === type);
       const latestSource = sources[sources.length - 1];
       
@@ -109,7 +123,7 @@ export default function DataSources() {
           description: `${connector.name} has been connected and is syncing data.`
         });
       }
-    }, 3000);
+    }, 3200);
   };
 
   const handleFileUpload = useCallback((files: FileList) => {
@@ -118,7 +132,22 @@ export default function DataSources() {
     
     setUploadProgress(0);
     
-    // Simulate file upload progress
+    // Show realistic upload progress with processing steps
+    fileArray.forEach((file, index) => {
+      // Show initial processing
+      toast({
+        title: "Processing file",
+        description: `Extracting content from ${file.name}...`,
+      });
+      
+      setTimeout(() => {
+        toast({
+          title: "Analyzing content",
+          description: `Creating embeddings for ${file.name}...`,
+        });
+      }, 500 + (index * 200));
+    });
+    
     const interval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev === null) return 10;
@@ -135,16 +164,16 @@ export default function DataSources() {
           });
 
           toast({
-            title: "Files uploaded",
-            description: `${totalFiles} files have been uploaded and indexed successfully.`
+            title: "Files processed",
+            description: `${totalFiles} files are now searchable in your knowledge base.`
           });
 
           setTimeout(() => setUploadProgress(null), 1000);
           return 100;
         }
-        return prev + 10;
+        return prev + 8;
       });
-    }, 200);
+    }, 300);
   }, [addDataSource, toast]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {

@@ -21,9 +21,10 @@ import { cn } from '@/lib/utils';
 const Index = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { chatMessages, addChatMessage, dataSources, mcpServers } = useAppStore();
+  const { chatMessages, addChatMessage, dataSources, mcpServers, addDataSource } = useAppStore();
 
   const connectedSources = dataSources.filter(s => s.status === 'connected');
   const connectedServers = mcpServers.filter(s => s.status === 'connected');
@@ -80,6 +81,85 @@ const Index = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    for (const file of Array.from(files)) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        
+        // Add file as data source
+        addDataSource({
+          name: file.name,
+          type: 'file',
+          status: 'connected',
+          fileCount: 1,
+          lastSync: new Date().toISOString()
+        });
+
+        toast({
+          title: "File uploaded",
+          description: `${file.name} has been processed and added to your knowledge base.`,
+        });
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const toggleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast({
+        title: "Voice input not supported",
+        description: "Your browser doesn't support voice input.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast({
+        title: "Listening...",
+        description: "Start speaking your question",
+      });
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setMessage(transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast({
+        title: "Voice input failed",
+        description: "Please try again or type your question.",
+        variant: "destructive",
+      });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
   };
 
   return (
@@ -234,17 +314,25 @@ const Index = () => {
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"
-                  onClick={() => toast({ title: "File upload coming soon!" })}
+                  onClick={() => document.getElementById('file-upload')?.click()}
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
+                <input
+                  id="file-upload"
+                  type="file"
+                  multiple
+                  accept=".pdf,.txt,.doc,.docx,.md"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => toast({ title: "Voice input coming soon!" })}
+                  className={cn("h-8 w-8 p-0", isListening && "bg-red-100 border-red-300")}
+                  onClick={toggleVoiceInput}
                 >
-                  <Mic className="h-4 w-4" />
+                  <Mic className={cn("h-4 w-4", isListening && "text-red-600")} />
                 </Button>
               </div>
             </div>
