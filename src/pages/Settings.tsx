@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { useAppStore } from '@/stores/useAppStore';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from 'next-themes';
 import {
   Settings as SettingsIcon,
   Database,
@@ -26,6 +27,7 @@ import {
 export default function Settings() {
   const { settings, updateSettings } = useAppStore();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const handleSave = () => {
     toast({
@@ -306,8 +308,8 @@ export default function Settings() {
                 </p>
               </div>
               <Switch
-                checked={settings.theme === 'dark'}
-                onCheckedChange={(checked) => updateSettings({ theme: checked ? 'dark' : 'light' })}
+                checked={theme === 'dark'}
+                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
               />
             </div>
 
