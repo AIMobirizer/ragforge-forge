@@ -28,6 +28,9 @@ export interface ChatThread {
   updatedAt: string;
   model?: string;
   systemPrompt?: string;
+  isFavorite?: boolean;
+  tags?: string[];
+  messageCount?: number;
 }
 
 export interface ChatState {
@@ -43,6 +46,24 @@ export interface ChatState {
     maxTokens: number;
     systemPrompt: string;
   };
+  // Chat History specific state
+  historySearch: {
+    query: string;
+    results: ChatMessage[];
+    loading: boolean;
+  };
+  historyFilters: {
+    dateRange?: { start: string; end: string };
+    role?: 'user' | 'assistant' | 'all';
+    threadIds: string[];
+    tags: string[];
+  };
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
 }
 
 const initialState: ChatState = {
@@ -57,6 +78,22 @@ const initialState: ChatState = {
     temperature: 0.7,
     maxTokens: 2000,
     systemPrompt: 'You are a helpful AI assistant with access to a knowledge base.',
+  },
+  historySearch: {
+    query: '',
+    results: [],
+    loading: false,
+  },
+  historyFilters: {
+    role: 'all',
+    threadIds: [],
+    tags: [],
+  },
+  pagination: {
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 20,
   },
 };
 
@@ -212,6 +249,160 @@ export const regenerateResponse = createAsyncThunk(
   }
 );
 
+// Chat History specific thunks
+export const fetchChatHistory = createAsyncThunk(
+  'chat/fetchChatHistory',
+  async (params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    dateRange?: { start: string; end: string };
+    threadId?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set('page', params.page.toString());
+    if (params.limit) searchParams.set('limit', params.limit.toString());
+    if (params.search) searchParams.set('search', params.search);
+    if (params.dateRange) {
+      searchParams.set('start', params.dateRange.start);
+      searchParams.set('end', params.dateRange.end);
+    }
+    if (params.threadId) searchParams.set('threadId', params.threadId);
+
+    const response = await fetch(`/api/chat/history?${searchParams}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch chat history');
+    }
+    
+    return response.json();
+  }
+);
+
+export const searchChatHistory = createAsyncThunk(
+  'chat/searchChatHistory',
+  async (params: {
+    query: string;
+    filters?: {
+      dateRange?: { start: string; end: string };
+      role?: 'user' | 'assistant';
+      threadIds?: string[];
+    };
+    limit?: number;
+  }) => {
+    const response = await fetch('/api/chat/history/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to search chat history');
+    }
+    
+    return response.json();
+  }
+);
+
+export const exportChatHistory = createAsyncThunk(
+  'chat/exportChatHistory',
+  async (params: {
+    threadIds?: string[];
+    format: 'json' | 'csv' | 'txt' | 'pdf';
+    dateRange?: { start: string; end: string };
+  }) => {
+    const response = await fetch('/api/chat/history/export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to export chat history');
+    }
+    
+    // Handle file download
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const filename = `chat-history-${Date.now()}.${params.format}`;
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true, filename };
+  }
+);
+
+export const clearChatHistory = createAsyncThunk(
+  'chat/clearChatHistory',
+  async (params?: {
+    threadIds?: string[];
+    beforeDate?: string;
+    keepFavorites?: boolean;
+  }) => {
+    const response = await fetch('/api/chat/history/clear', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params || {}),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to clear chat history');
+    }
+    
+    return response.json();
+  }
+);
+
+export const updateThreadTitle = createAsyncThunk(
+  'chat/updateThreadTitle',
+  async (params: { threadId: string; title: string }) => {
+    const response = await fetch(`/api/chat/threads/${params.threadId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: params.title }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update thread title');
+    }
+    
+    return response.json();
+  }
+);
+
+export const favoriteThread = createAsyncThunk(
+  'chat/favoriteThread',
+  async (params: { threadId: string; favorite: boolean }) => {
+    const response = await fetch(`/api/chat/threads/${params.threadId}/favorite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ favorite: params.favorite }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update favorite status');
+    }
+    
+    return response.json();
+  }
+);
+
 const chatSlice = createSlice({
   name: 'chat',
   initialState,
@@ -257,6 +448,41 @@ const chatSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    // Chat History specific reducers
+    setHistorySearchQuery: (state, action: PayloadAction<string>) => {
+      state.historySearch.query = action.payload;
+    },
+    setHistoryFilters: (state, action: PayloadAction<Partial<ChatState['historyFilters']>>) => {
+      state.historyFilters = { ...state.historyFilters, ...action.payload };
+    },
+    setPagination: (state, action: PayloadAction<Partial<ChatState['pagination']>>) => {
+      state.pagination = { ...state.pagination, ...action.payload };
+    },
+    clearHistorySearch: (state) => {
+      state.historySearch.query = '';
+      state.historySearch.results = [];
+    },
+    toggleThreadFavorite: (state, action: PayloadAction<string>) => {
+      const thread = state.threads.find(t => t.id === action.payload);
+      if (thread) {
+        thread.isFavorite = !thread.isFavorite;
+      }
+    },
+    addThreadTag: (state, action: PayloadAction<{ threadId: string; tag: string }>) => {
+      const thread = state.threads.find(t => t.id === action.payload.threadId);
+      if (thread) {
+        if (!thread.tags) thread.tags = [];
+        if (!thread.tags.includes(action.payload.tag)) {
+          thread.tags.push(action.payload.tag);
+        }
+      }
+    },
+    removeThreadTag: (state, action: PayloadAction<{ threadId: string; tag: string }>) => {
+      const thread = state.threads.find(t => t.id === action.payload.threadId);
+      if (thread && thread.tags) {
+        thread.tags = thread.tags.filter(tag => tag !== action.payload.tag);
+      }
     },
   },
   extraReducers: (builder) => {
@@ -329,6 +555,67 @@ const chatSlice = createSlice({
             thread.messages[messageIndex] = action.payload.newMessage;
           }
         }
+      })
+      
+      // Chat History specific cases
+      .addCase(fetchChatHistory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchChatHistory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.threads = action.payload.threads;
+        state.pagination = {
+          currentPage: action.payload.page,
+          totalPages: action.payload.totalPages,
+          totalItems: action.payload.totalItems,
+          itemsPerPage: action.payload.limit,
+        };
+      })
+      .addCase(fetchChatHistory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch chat history';
+      })
+      
+      // Search chat history
+      .addCase(searchChatHistory.pending, (state) => {
+        state.historySearch.loading = true;
+      })
+      .addCase(searchChatHistory.fulfilled, (state, action) => {
+        state.historySearch.loading = false;
+        state.historySearch.results = action.payload.results;
+      })
+      .addCase(searchChatHistory.rejected, (state, action) => {
+        state.historySearch.loading = false;
+        state.error = action.error.message || 'Failed to search chat history';
+      })
+      
+      // Clear chat history
+      .addCase(clearChatHistory.fulfilled, (state, action) => {
+        if (action.payload.clearedThreadIds) {
+          state.threads = state.threads.filter(
+            thread => !action.payload.clearedThreadIds.includes(thread.id)
+          );
+        } else {
+          state.threads = [];
+        }
+      })
+      
+      // Update thread title
+      .addCase(updateThreadTitle.fulfilled, (state, action) => {
+        const thread = state.threads.find(t => t.id === action.payload.id);
+        if (thread) {
+          thread.title = action.payload.title;
+          thread.updatedAt = action.payload.updatedAt;
+        }
+      })
+      
+      // Favorite thread
+      .addCase(favoriteThread.fulfilled, (state, action) => {
+        const thread = state.threads.find(t => t.id === action.payload.id);
+        if (thread) {
+          thread.isFavorite = action.payload.isFavorite;
+        }
       });
   },
 });
@@ -341,6 +628,13 @@ export const {
   updateMessage,
   updateStreamingMessage,
   clearError,
+  setHistorySearchQuery,
+  setHistoryFilters,
+  setPagination,
+  clearHistorySearch,
+  toggleThreadFavorite,
+  addThreadTag,
+  removeThreadTag,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
